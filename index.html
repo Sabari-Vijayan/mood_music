@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood Playlist</title>
+    <link rel="icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3b5.png">
+    <meta name="description" content="Let your emotions choose the music! Detect your mood with your webcam and get a personalized playlist.">
+    <link rel="stylesheet" href="index.css">
+    <!-- CHANGE 1: Use jsdelivr and defer for face-api.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Mood Playlist</h1>
+        <p class="subtitle">Let your emotions choose the music</p>
+        <video id="video" autoplay muted playsinline></video>
+        <div class="controls">
+            <button id="startBtn" onclick="startCamera()">Start Camera</button>
+            <button id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
+        </div>
+        <div id="status" class="status">Click "Start Camera" to begin mood detection</div>
+        <div class="mood-display" id="moodDisplay" style="display: none;">
+            <div class="current-mood" id="currentMood">Detecting your mood...</div>
+            <div class="mood-emoji" id="moodEmoji">🤔</div>
+        </div>
+        <div class="playlist-section" id="playlistSection" style="display: none;">
+            <div class="playlist-title" id="playlistTitle">Your Mood Playlist</div>
+            <div id="songList"></div>
+        </div>
+    </div>
+    <script>
+        // Gemini API Key and Endpoint
+        const GEMINI_API_KEY = "AIzaSyBY8IUiru4JWaz_TogtsoTIT_fNR9S5Pr8";
+        const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + GEMINI_API_KEY;
+
+        // Fallback static playlists (for error or first load)
+        const fallbackPlaylists = {
+            happy: [
+                { title: "Good 4 U", artist: "Olivia Rodrigo", reason: "Upbeat and energetic, perfect for a happy mood." },
+                { title: "Uptown Funk", artist: "Bruno Mars", reason: "Funky and fun, keeps the good vibes going." },
+                { title: "Can't Stop the Feeling", artist: "Justin Timberlake", reason: "Feel-good pop to match your happiness." },
+                { title: "Happy", artist: "Pharrell Williams", reason: "Literally a song about being happy!" },
+                { title: "Walking on Sunshine", artist: "Katrina and the Waves", reason: "Classic, sunny, and joyful." }
+            ],
+            sad: [
+                { title: "Someone Like You", artist: "Adele", reason: "Emotional ballad for when you're feeling down." },
+                { title: "Mad World", artist: "Gary Jules", reason: "Reflective and gentle for sad moments." },
+                { title: "Hurt", artist: "Johnny Cash", reason: "Raw emotion and comfort in music." },
+                { title: "Everybody Hurts", artist: "R.E.M.", reason: "A reminder that you're not alone." },
+                { title: "Black", artist: "Pearl Jam", reason: "Deep and soulful for sad moods." }
+            ],
+            angry: [
+                { title: "Eye of the Tiger", artist: "Survivor", reason: "Channel your anger into motivation." },
+                { title: "Thunderstruck", artist: "AC/DC", reason: "High energy to match intense feelings." },
+                { title: "Lose Yourself", artist: "Eminem", reason: "Powerful and cathartic rap." },
+                { title: "Break Stuff", artist: "Limp Bizkit", reason: "Let it out with some nu-metal." },
+                { title: "Killing in the Name", artist: "Rage Against the Machine", reason: "Raw, rebellious energy." }
+            ],
+            neutral: [
+                { title: "Weightless", artist: "Marconi Union", reason: "Calming and ambient for a neutral mood." },
+                { title: "Clair de Lune", artist: "Claude Debussy", reason: "Peaceful classical piano." },
+                { title: "Lofi Hip Hop Mix", artist: "Various Artists", reason: "Chill and relaxing beats." },
+                { title: "Ambient 1", artist: "Brian Eno", reason: "Soothing and unobtrusive." },
+                { title: "Gymnopédie No. 1", artist: "Erik Satie", reason: "Gentle and contemplative." }
+            ],
+            surprised: [
+                { title: "What's Up?", artist: "4 Non Blondes", reason: "Unexpected and catchy." },
+                { title: "Surprise", artist: "Paul Simon", reason: "Aptly named for a surprise mood." },
+                { title: "Unexpected", artist: "Liam Gallagher", reason: "For those surprising moments." },
+                { title: "Sudden Stop", artist: "Mark Ronson", reason: "A twist in the playlist." },
+                { title: "Plot Twist", artist: "Marc E. Bassy", reason: "Because life is full of surprises." }
+            ]
+        };
+
+        // Mood emojis and colors
+        const moodEmojis = {
+            happy: "😊",
+            sad: "😢",
+            angry: "😠",
+            neutral: "😐",
+            surprised: "😲"
+        };
+
+        // Cache for AI playlists: { mood: { timestamp, playlist, isAI } }
+        const aiPlaylistCache = {};
+        const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+        let video, detectionInterval, isModelLoaded = false, demoControls = null;
+
+        // Helper: Get time of day string
+        function getTimeOfDay() {
+            const hour = new Date().getHours();
+            if (hour < 5) return "late night";
+            if (hour < 12) return "morning";
+            if (hour < 17) return "afternoon";
+            if (hour < 21) return "evening";
+            return "night";
+        }
+
+        // Gemini API integration
+        async function fetchGeminiPlaylist(mood) {
+            const timeOfDay = getTimeOfDay();
+            const prompt = `User is feeling ${mood}. It's currently ${timeOfDay}. Generate 5 current popular songs that perfectly match this emotional state. Consider both matching the mood and songs that could help improve their emotional well-being. Return ONLY a JSON array in this exact format: [{"title": "Song Name", "artist": "Artist Name", "reason": "Brief reason why this song fits this mood"}]. No other text.`;
+            const body = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("Gemini API error response:", errorText);
+                    throw new Error("API response not ok");
+                }
+                const data = await response.json();
+                // Parse the JSON array from Gemini's response
+                let text = "";
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
+                    text = data.candidates[0].content.parts[0].text;
+                } else if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                    text = data.candidates[0].content.parts.map(p => p.text).join("");
+                }
+                // Remove any code block formatting or extra text
+                text = text.replace(/^[^\[]*([\[].*[\]])[^\]]*$/s, "$1");
+                const playlist = JSON.parse(text);
+                if (!Array.isArray(playlist)) throw new Error("Playlist is not an array");
+                return playlist;
+            } catch (err) {
+                console.error("Gemini API error:", err);
+                throw err;
+            }
+        }
+
+        // Replace startMoodDetection with debugging version
+        async function startMoodDetection() {
+            if (!isModelLoaded) {
+                console.log("Models not loaded, starting demo mode");
+                startDemoMode();
+                return;
+            }
+
+            console.log("Starting mood detection with loaded models");
+            
+            detectionInterval = setInterval(async () => {
+                if (video.readyState === 4) {
+                    console.log("Video ready, attempting face detection...");
+                    try {
+                        const detections = await faceapi
+                            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                            .withFaceExpressions();
+
+                        console.log("Detection result:", detections.length, "faces found");
+                        
+                        if (detections.length > 0) {
+                            console.log("Face detected! Expressions:", detections[0].expressions);
+                            const expressions = detections[0].expressions;
+                            const dominantExpression = getDominantExpression(expressions);
+                            console.log("Dominant expression:", dominantExpression);
+                            displayMoodAndPlaylist(dominantExpression);
+                        } else {
+                            console.log("No face detected in frame");
+                            updateMoodDisplay("No face detected - try moving closer to camera", "🤔");
+                        }
+                    } catch (error) {
+                        console.error('Detection error:', error);
+                        updateMoodDisplay("Detection error", "❌");
+                    }
+                } else {
+                    console.log("Video not ready, readyState:", video.readyState);
+                }
+            }, 2000); // Increased to 2 seconds for better performance
+        }
+        // Replace getDominantExpression with corrected version
+        function getDominantExpression(expressions) {
+            let maxValue = 0;
+            let dominantExpression = 'neutral';
+            // Map face-api emotion names to our mood names
+            const emotionMapping = {
+                'happy': 'happy',
+                'sad': 'sad',
+                'angry': 'angry',
+                'neutral': 'neutral',
+                'surprised': 'surprised',
+                'fearful': 'neutral',
+                'disgusted': 'angry'
+            };
+            for (const [expression, value] of Object.entries(expressions)) {
+                if (value > maxValue) {
+                    maxValue = value;
+                    dominantExpression = emotionMapping[expression] || 'neutral';
+                }
+            }
+            return dominantExpression;
+        }
+        function startDemoMode() {
+            updateStatus("Demo mode: Click emotions to test playlists", "success");
+            if (!demoControls) {
+                demoControls = document.createElement('div');
+                demoControls.innerHTML = `
+                    <div style="margin: 1rem 0;">
+                        <button onclick="displayMoodAndPlaylist('happy')">😊 Happy</button>
+                        <button onclick="displayMoodAndPlaylist('sad')">😢 Sad</button>
+                        <button onclick="displayMoodAndPlaylist('angry')">😠 Angry</button>
+                        <button onclick="displayMoodAndPlaylist('neutral')">😐 Neutral</button>
+                        <button onclick="displayMoodAndPlaylist('surprised')">😲 Surprised</button>
+                    </div>
+                `;
+                document.body.appendChild(demoControls);
+            }
+        }
+
+        // Function to update the status message
+        function updateStatus(message, statusClass) {
+            const statusElement = document.getElementById('status');
+            if (statusElement) {
+                statusElement.textContent = message;
+                statusElement.className = `status ${statusClass}`;
+            }
+        }
+
+        // Function to update the mood display
+        function updateMoodDisplay(moodText, emoji) {
+            const moodDisplay = document.getElementById('moodDisplay');
+            const currentMood = document.getElementById('currentMood');
+            const moodEmoji = document.getElementById('moodEmoji');
+            if (moodDisplay) {
+                moodDisplay.style.display = 'block';
+                if (currentMood) currentMood.textContent = moodText;
+                if (moodEmoji) moodEmoji.textContent = emoji;
+            }
+        }
+
+        // Function to display the playlist
+        async function displayMoodAndPlaylist(mood) {
+            updateMoodDisplay(mood, moodEmojis[mood]);
+            const playlistSection = document.getElementById('playlistSection');
+            const playlistTitle = document.getElementById('playlistTitle');
+            const songList = document.getElementById('songList');
+
+            if (playlistSection) playlistSection.style.display = 'block';
+            if (playlistTitle) playlistTitle.textContent = `Your Mood Playlist: ${mood}`;
+            if (songList) {
+                songList.innerHTML = ''; // Clear previous songs
+                try {
+                    let playlist;
+                    if (aiPlaylistCache[mood] && Date.now() - aiPlaylistCache[mood].timestamp < CACHE_DURATION_MS) {
+                        playlist = aiPlaylistCache[mood].playlist;
+                        console.log("Using cached AI playlist for", mood);
+                    } else {
+                        console.log("Fetching new AI playlist for", mood);
+                        playlist = await fetchGeminiPlaylist(mood);
+                        aiPlaylistCache[mood] = { timestamp: Date.now(), playlist: playlist, isAI: true };
+                    }
+                    playlist.forEach(song => {
+                        const songElement = document.createElement('div');
+                        songElement.classList.add('song-item');
+                        songElement.innerHTML = `
+                            <strong>${song.title}</strong> by ${song.artist}
+                            <p>${song.reason}</p>
+                        `;
+                        songList.appendChild(songElement);
+                    });
+                } catch (err) {
+                    console.error("Error fetching or displaying playlist:", err);
+                    updateStatus("Failed to fetch playlist. Showing fallback.", "error");
+                    const fallbackPlaylist = fallbackPlaylists[mood] || fallbackPlaylists.neutral; // Fallback to neutral if mood not found
+                    fallbackPlaylist.forEach(song => {
+                        const songElement = document.createElement('div');
+                        songElement.classList.add('song-item');
+                        songElement.innerHTML = `
+                            <strong>${song.title}</strong> by ${song.artist}
+                            <p>${song.reason}</p>
+                        `;
+                        songList.appendChild(songElement);
+                    });
+                }
+            }
+        }
+
+        // Function to start the camera
+        async function startCamera() {
+            updateStatus("Starting camera...", "loading");
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video = document.getElementById('video');
+                video.srcObject = stream;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('moodDisplay').style.display = 'block';
+                if (!isModelLoaded) await loadModels();
+                function handleVideoLoaded() {
+                    updateStatus("Camera ready! Analyzing your mood...", "success");
+                    startMoodDetection();
+                }
+                video.onloadeddata = handleVideoLoaded;
+                if (video.readyState >= 2) { // HAVE_CURRENT_DATA or more
+                    handleVideoLoaded();
+                }
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                updateStatus("Camera access denied. Using demo mode.", "error");
+                startDemoMode();
+            }
+        }
+
+        // Function to stop the camera
+        function stopCamera() {
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            if (detectionInterval) clearInterval(detectionInterval);
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('moodDisplay').style.display = 'none';
+            document.getElementById('playlistSection').style.display = 'none';
+            if (demoControls) demoControls.remove();
+            updateStatus("Camera stopped", "");
+        }
+
+        // Function to load models (example, replace with actual model loading logic)
+        async function loadModels() {
+            updateStatus("Loading AI models...", "loading");
+            try {
+                // Check if faceapi is loaded
+                if (typeof faceapi === 'undefined') {
+                    throw new Error('Face-api.js not loaded');
+                }
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/model';
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                isModelLoaded = true;
+                console.log("All models loaded successfully!");
+                updateStatus("AI models loaded successfully!", "success");
+            } catch (error) {
+                console.error('Error loading models:', error);
+                console.log("Falling back to demo mode");
+                updateStatus("Error loading AI models. Using demo mode.", "error");
+                isModelLoaded = false;
+            }
+        }
+
+        function waitForFaceAPI() {
+            if (typeof faceapi !== 'undefined') {
+                updateStatus("Welcome to Mood Playlist! 🎵", "success");
+                loadModels();
+            } else {
+                setTimeout(waitForFaceAPI, 100);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', waitForFaceAPI);
+
+        window.stopCamera = stopCamera;
+    </script>
+</body>
+</html>

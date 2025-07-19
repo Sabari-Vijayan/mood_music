@@ -1,0 +1,212 @@
+/* Dark theme with glassmorphism aesthetics for Mood Playlist */
+
+:root {
+  --primary-bg: #181c24;
+  --glass-bg: rgba(30, 34, 44, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --accent: #ff6b6b;
+  --accent2: #ee5a24;
+  --text-main: #f5f6fa;
+  --text-muted: #b2becd;
+  --shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Arial', sans-serif;
+  background: linear-gradient(135deg, #232946 0%, #181c24 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+}
+
+.container {
+  text-align: center;
+  padding: 2.5rem 2rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(120%);
+  border-radius: 24px;
+  border: 1.5px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  max-width: 600px;
+  width: 95%;
+}
+
+h1 {
+  font-size: 2.7rem;
+  margin-bottom: 1.1rem;
+  background: linear-gradient(45deg, #fff, #b2becd 60%, #ff6b6b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  margin-bottom: 2.2rem;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+#video {
+  width: 100%;
+  max-width: 400px;
+  height: 300px;
+  border-radius: 18px;
+  margin-bottom: 1.7rem;
+  object-fit: cover;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  border: 1.5px solid var(--glass-border);
+  background: #232946;
+}
+
+.controls {
+  margin-bottom: 2.2rem;
+}
+
+button {
+  background: linear-gradient(45deg, var(--accent), var(--accent2));
+  color: #fff;
+  border: none;
+  padding: 13px 32px;
+  border-radius: 28px;
+  cursor: pointer;
+  font-size: 1.05rem;
+  margin: 0 12px 10px 0;
+  transition: all 0.25s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 4px 18px rgba(255,107,107,0.10);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+button:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 32px rgba(255,107,107,0.18);
+  filter: brightness(1.08);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.mood-display {
+  background: rgba(40, 44, 54, 0.55);
+  border-radius: 18px;
+  padding: 1.7rem 1rem;
+  margin: 1.7rem 0 0.7rem 0;
+  backdrop-filter: blur(8px) saturate(120%);
+  border: 1.2px solid var(--glass-border);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+}
+
+.current-mood {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  letter-spacing: 0.01em;
+}
+
+.mood-emoji {
+  font-size: 3.2rem;
+  margin: 0.5rem 0;
+}
+
+.playlist-section {
+  background: rgba(40, 44, 54, 0.45);
+  border-radius: 18px;
+  padding: 1.7rem 1rem;
+  margin-top: 1.7rem;
+  border: 1.2px solid var(--glass-border);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+}
+
+.playlist-title {
+  font-size: 1.35rem;
+  margin-bottom: 1.1rem;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+
+.song-item {
+  background: rgba(255, 255, 255, 0.07);
+  margin: 0.6rem 0;
+  padding: 1.1rem 1rem;
+  border-radius: 12px;
+  border-left: 4px solid var(--accent);
+  transition: all 0.25s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+
+.song-item:hover {
+  background: rgba(255, 255, 255, 0.13);
+  transform: translateX(7px) scale(1.02);
+}
+
+.song-title {
+  font-weight: bold;
+  font-size: 1.13rem;
+  color: var(--text-main);
+}
+
+.song-artist {
+  color: var(--text-muted);
+  font-size: 0.93rem;
+  margin-top: 0.3rem;
+}
+
+.status {
+  font-size: 1.05rem;
+  margin: 1.1rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  background: rgba(255, 107, 107, 0.13);
+  border-left: 4px solid var(--accent);
+  color: #fff;
+}
+
+.success {
+  background: rgba(107, 255, 107, 0.13);
+  border-left: 4px solid #6bff6b;
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background: #232946;
+}
+::-webkit-scrollbar-thumb {
+  background: #232946;
+  border-radius: 8px;
+} 
