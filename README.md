@@ -2,6 +2,8 @@
 
 Let your emotions choose the music! This web app detects your mood using your webcam and recommends a playlist to match your current emotion.
 
+demo: https://sabari-vijayan.github.io/mood_music/
+
 ## Features
 - Real-time mood detection using your webcam and AI (face-api.js)
 - Personalized playlists for happy, sad, angry, neutral, and surprised moods
